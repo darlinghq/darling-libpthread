@@ -71,6 +71,7 @@ typedef struct _pthread_attr_t pthread_attr_t;
 #include <mach/mach.h>
 #include <mach/mach_error.h>
 #include <sys/queue.h>
+#include <stdatomic.h>
 
 #define __OS_EXPOSE_INTERNALS__ 1
 #include <os/internal/internal_shared.h>
