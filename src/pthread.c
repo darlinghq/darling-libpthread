@@ -1749,6 +1749,7 @@ free(void *p)
  */
 struct ProgramVars; /* forward reference */
 
+#ifndef VARIANT_DYLD
 int
 __pthread_init(const struct _libpthread_functions *pthread_funcs,
 	       const char *envp[] __unused,
@@ -1833,6 +1834,7 @@ __pthread_init(const struct _libpthread_functions *pthread_funcs,
 
 	return 0;
 }
+#endif
 
 int
 sched_yield(void)
@@ -2020,6 +2022,7 @@ _pthread_clear_qos_tsd(mach_port_t thread_port)
 
 /***** pthread workqueue support routines *****/
 
+#ifndef VARIANT_DYLD
 PTHREAD_NOEXPORT void
 pthread_workqueue_atfork_child(void)
 {
@@ -2049,6 +2052,7 @@ pthread_workqueue_atfork_child(void)
 		(void)__workq_open();
 	}
 }
+#endif
 
 // workqueue entry point from kernel
 void

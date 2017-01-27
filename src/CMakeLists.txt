@@ -14,7 +14,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)
 
 add_definitions(-DPRIVATE)
 
-set(pthreads_sources
+set(pthread_common_sources
 	pthread_atfork.c
 	pthread.c
 	pthread_cond.c
@@ -29,6 +29,9 @@ set(pthreads_sources
 	resolver.c
 	thread_setup.c
 	pthread_asm.S
+)
+set(pthread_sources
+	${pthread_common_sources}
 	variants/pthread_cancelable_cancel.c
 	variants/pthread_cancelable_legacy.c
 	variants/pthread_cond_legacy.c
@@ -54,13 +57,23 @@ set_source_files_properties(
 )
 
 set(DYLIB_INSTALL_NAME "/usr/lib/system/libsystem_pthread.dylib")
-add_darling_library(system_pthread SHARED ${pthreads_sources})
-target_link_libraries(system_pthread system_kernel platform system_dyld system_c)
-make_fat(system_pthread)
+add_circular(system_pthread FAT
+	SOURCES
+		${pthread_sources}
+	SIBLINGS
+		platform system_kernel system_dyld system_c
+)
+#target_link_libraries(system_pthread system_kernel platform)
+#make_fat(system_pthread)
 
 install(TARGETS system_pthread DESTINATION libexec/darling/usr/lib/system)
 
 # DYLD variant
 
-add_library(libc-pthreads_dyld OBJECT pthread.c pthread_mutex.c pthread_tsd.c pthread_cond.c pthread_cancelable.c)
-SET_TARGET_PROPERTIES(libc-pthreads_dyld PROPERTIES COMPILE_FLAGS "-UBUILDING_VARIANT -DVARIANT_DYLD -DVARIANT_CANCELABLE -DVARIANT_DARWINEXTSN")
+set(CMAKE_AR "${CMAKE_BINARY_DIR}/src/external/cctools-port/cctools/ar/x86_64-apple-darwin11-ar")
+set(CMAKE_RANLIB "${CMAKE_BINARY_DIR}/src/external/cctools-port/cctools/misc/ranlib")
+add_library(pthread_static STATIC ${pthread_common_sources})
+SET_TARGET_PROPERTIES(pthread_static PROPERTIES COMPILE_FLAGS "-DVARIANT_DYLD=1 -DVARIANT_STATIC=1 -D__DARWIN_UNIX03=1 -D__DARWIN_64_BIT_INO_T=1 -D__DARWIN_NON_CANCELABLE=1 -D__DARWIN_VERS_1050=1")
+make_fat(pthread_static)
+add_dependencies(pthread_static ranlib x86_64-apple-darwin11-ar)
+
