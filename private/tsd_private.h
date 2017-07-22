@@ -192,6 +192,20 @@
 /* Keys 95 for CoreText */
 #define __PTK_FRAMEWORK_CORETEXT_KEY0			95
 
+// Used to be 80-89 but Apple replaced that with CoreData
+
+/* Keys 100-109 for Garbage Collection */
+#define __PTK_FRAMEWORK_GC_KEY0		100
+#define __PTK_FRAMEWORK_GC_KEY1		101
+#define __PTK_FRAMEWORK_GC_KEY2		102
+#define __PTK_FRAMEWORK_GC_KEY3		103
+#define __PTK_FRAMEWORK_GC_KEY4		104
+#define __PTK_FRAMEWORK_GC_KEY5		105
+#define __PTK_FRAMEWORK_GC_KEY6		106
+#define __PTK_FRAMEWORK_GC_KEY7		107
+#define __PTK_FRAMEWORK_GC_KEY8		108
+#define __PTK_FRAMEWORK_GC_KEY9		109
+
 /* Keys 210 - 229 are for libSystem usage within the iOS Simulator */
 /* They are offset from their corresponding libSystem keys by 200 */
 #define __PTK_LIBC_SIM_LOCALE_KEY	210
