@@ -70,9 +70,7 @@ install(TARGETS system_pthread DESTINATION libexec/darling/usr/lib/system)
 
 # DYLD variant
 
-set(CMAKE_AR "${CMAKE_BINARY_DIR}/src/external/cctools-port/cctools/ar/x86_64-apple-darwin11-ar")
-set(CMAKE_RANLIB "${CMAKE_BINARY_DIR}/src/external/cctools-port/cctools/misc/ranlib")
-add_library(pthread_static STATIC ${pthread_common_sources})
+add_darling_static_library(pthread_static SOURCES ${pthread_common_sources})
 SET_TARGET_PROPERTIES(pthread_static PROPERTIES COMPILE_FLAGS "-DVARIANT_DYLD=1 -DVARIANT_STATIC=1 -D__DARWIN_UNIX03=1 -D__DARWIN_64_BIT_INO_T=1 -D__DARWIN_NON_CANCELABLE=1 -D__DARWIN_VERS_1050=1")
 make_fat(pthread_static)
 add_dependencies(pthread_static ranlib x86_64-apple-darwin11-ar)
