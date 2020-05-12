@@ -230,6 +230,8 @@ extern int __workq_kernreturn(int, void *, int, int);
 
 #if defined(__i386__) || defined(__x86_64__)
 static const mach_vm_address_t PTHREAD_STACK_HINT = 0xB0000000;
+#elif defined(__arm__) || defined(__arm64__)
+static const mach_vm_address_t PTHREAD_STACK_HINT = 0x30000000;
 #else
 #error no PTHREAD_STACK_HINT for this architecture
 #endif
