@@ -4,11 +4,6 @@ cmake_minimum_required(VERSION 2.4.0)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -nostdinc -std=gnu11")
 
-include_directories(${CMAKE_SOURCE_DIR}/src/libc/darwin)
-include_directories(${CMAKE_SOURCE_DIR}/src/libc/derived)
-include_directories(${CMAKE_SOURCE_DIR}/src/kernel/libsyscall/wrappers)
-include_directories(${CMAKE_SOURCE_DIR}/src/kernel/libsyscall/wrappers/spawn)
-include_directories(${CMAKE_SOURCE_DIR}/src/kernel/libsyscall)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../private)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)
 
