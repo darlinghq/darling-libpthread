@@ -64,18 +64,40 @@ typedef void (*pthread_introspection_hook_t)(unsigned int event,
 
 /*!
  * @enum pthread_introspection_event_t
+ * Events sent by libpthread about threads lifetimes.
  *
- * @constant PTHREAD_INTROSPECTION_THREAD_CREATE
- * pthread_t was created.
+ * @const PTHREAD_INTROSPECTION_THREAD_CREATE
+ * The specified pthread_t was created, and there will be a paired
+ * PTHREAD_INTROSPECTION_THREAD_DESTROY event. However, there may not be
+ * a START/TERMINATE pair of events for this pthread_t.
  *
- * @constant PTHREAD_INTROSPECTION_THREAD_START
- * Thread has started and stack was allocated.
+ * Starting with macOS 10.14, and iOS 12, this event is always sent before
+ * PTHREAD_INTROSPECTION_THREAD_START is sent. This event is however not sent
+ * for the main thread.
  *
- * @constant PTHREAD_INTROSPECTION_THREAD_TERMINATE
- * Thread is about to be terminated and stack will be deallocated.
+ * This event may not be sent from the context of the passed in pthread_t.
  *
- * @constant PTHREAD_INTROSPECTION_THREAD_DESTROY
- * pthread_t is about to be destroyed.
+ * Note that all properties of this thread may not be functional yet, and it is
+ * not permitted to call functions on this thread past observing its address.
+ *
+ * @const PTHREAD_INTROSPECTION_THREAD_START
+ * Thread has started and its stack was allocated. There will be a matching
+ * PTHREAD_INTROSPECTION_THREAD_TERMINATE event.
+ *
+ * This event is always sent from the context of the passed in pthread_t.
+ *
+ * @const PTHREAD_INTROSPECTION_THREAD_TERMINATE
+ * Thread is about to be terminated and stack will be deallocated. This always
+ * matches a PTHREAD_INTROSPECTION_THREAD_START event.
+ *
+ * This event is always sent from the context of the passed in pthread_t.
+ *
+ * @const PTHREAD_INTROSPECTION_THREAD_DESTROY
+ * pthread_t is about to be destroyed. This always matches
+ * a PTHREAD_INTROSPECTION_THREAD_CREATE event, but there may not have been
+ * a START/TERMINATE pair of events for this pthread_t.
+ *
+ * This event may not be sent from the context of the passed in pthread_t.
  */
 enum {
 	PTHREAD_INTROSPECTION_THREAD_CREATE = 1,
@@ -101,7 +123,7 @@ enum {
  * Previously installed hook function or NULL.
  */
 
-__OSX_AVAILABLE_STARTING(__MAC_10_9, __IPHONE_7_0)
+__API_AVAILABLE(macos(10.9), ios(7.0))
 __attribute__((__nonnull__, __warn_unused_result__))
 extern pthread_introspection_hook_t
 pthread_introspection_hook_install(pthread_introspection_hook_t hook);

@@ -2,7 +2,7 @@
  * Copyright (c) 2000-2003 Apple Computer, Inc. All rights reserved.
  *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
- * 
+ *
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -11,10 +11,10 @@
  * unlawful or unlicensed copies of an Apple operating system, or to
  * circumvent, violate, or enable the circumvention or violation of, any
  * terms of an Apple operating system software license agreement.
- * 
+ *
  * Please obtain a copy of the License at
  * http://www.opensource.apple.com/apsl/ and read it before using this file.
- * 
+ *
  * The Original Code and all software distributed under the License are
  * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
@@ -22,18 +22,32 @@
  * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
  * Please see the License for the specific language governing rights and
  * limitations under the License.
- * 
+ *
  * @APPLE_OSREFERENCE_LICENSE_HEADER_END@
  */
 
 #ifndef _SYS_PTHREAD_INTERNAL_H_
 #define _SYS_PTHREAD_INTERNAL_H_
 
+#include <pthread/bsdthread_private.h>
+#include <pthread/priority_private.h>
+#include <pthread/workqueue_syscalls.h>
+
 #ifdef KERNEL
+struct ksyn_waitq_element;
+#include <stdatomic.h>
 #include <kern/thread_call.h>
+#include <kern/kcdata.h>
 #include <sys/pthread_shims.h>
 #include <sys/queue.h>
+#include <sys/proc_info.h>
+
+#ifdef __arm64__
+#define PTHREAD_INLINE_RMW_ATOMICS 0
+#else
+#define PTHREAD_INLINE_RMW_ATOMICS 1
 #endif
+#endif // KERNEL
 
 #include "kern/synch_internal.h"
 #include "kern/workqueue_internal.h"
@@ -52,161 +66,8 @@
 #define PTHREAD_FEATURE_QOS_MAINTENANCE	0x10		/* is QOS_CLASS_MAINTENANCE available */
 #define PTHREAD_FEATURE_RESERVED		0x20		/* burnt, shipped in OSX 10.11 & iOS 9 with partial kevent delivery support */
 #define PTHREAD_FEATURE_KEVENT          0x40		/* supports direct kevent delivery */
+#define PTHREAD_FEATURE_WORKLOOP          0x80		/* supports workloops */
 #define PTHREAD_FEATURE_QOS_DEFAULT		0x40000000	/* the kernel supports QOS_CLASS_DEFAULT */
-
-/* pthread bsdthread_ctl sysctl commands */
-#define BSDTHREAD_CTL_SET_QOS				0x10	/* bsdthread_ctl(BSDTHREAD_CTL_SET_QOS, thread_port, tsd_entry_addr, 0) */
-#define BSDTHREAD_CTL_GET_QOS				0x20	/* bsdthread_ctl(BSDTHREAD_CTL_GET_QOS, thread_port, 0, 0) */
-#define BSDTHREAD_CTL_QOS_OVERRIDE_START	0x40	/* bsdthread_ctl(BSDTHREAD_CTL_QOS_OVERRIDE_START, thread_port, priority, 0) */
-#define BSDTHREAD_CTL_QOS_OVERRIDE_END		0x80	/* bsdthread_ctl(BSDTHREAD_CTL_QOS_OVERRIDE_END, thread_port, 0, 0) */
-#define BSDTHREAD_CTL_SET_SELF				0x100	/* bsdthread_ctl(BSDTHREAD_CTL_SET_SELF, priority, voucher, flags) */
-#define BSDTHREAD_CTL_QOS_OVERRIDE_RESET	0x200	/* bsdthread_ctl(BSDTHREAD_CTL_QOS_OVERRIDE_RESET, 0, 0, 0) */
-#define BSDTHREAD_CTL_QOS_OVERRIDE_DISPATCH	0x400	/* bsdthread_ctl(BSDTHREAD_CTL_QOS_OVERRIDE_DISPATCH, thread_port, priority, 0) */
-#define BSDTHREAD_CTL_QOS_DISPATCH_ASYNCHRONOUS_OVERRIDE_ADD				0x401	/* bsdthread_ctl(BSDTHREAD_CTL_QOS_DISPATCH_ASYNCHRONOUS_OVERRIDE_ADD, thread_port, priority, resource) */
-#define BSDTHREAD_CTL_QOS_DISPATCH_ASYNCHRONOUS_OVERRIDE_RESET				0x402	/* bsdthread_ctl(BSDTHREAD_CTL_QOS_DISPATCH_ASYNCHRONOUS_OVERRIDE_RESET, 0|1 (?reset_all), resource, 0) */
-
-/* qos_class_t is mapped into one of these bits in the bitfield, this mapping now exists here because
- * libdispatch requires the QoS class mask of the pthread_priority_t to be a bitfield.
- */
-#define __PTHREAD_PRIORITY_CBIT_USER_INTERACTIVE 0x20
-#define __PTHREAD_PRIORITY_CBIT_USER_INITIATED 0x10
-#define __PTHREAD_PRIORITY_CBIT_DEFAULT 0x8
-#define __PTHREAD_PRIORITY_CBIT_UTILITY 0x4
-#define __PTHREAD_PRIORITY_CBIT_BACKGROUND 0x2
-#define __PTHREAD_PRIORITY_CBIT_MAINTENANCE 0x1
-#define __PTHREAD_PRIORITY_CBIT_UNSPECIFIED 0x0
-
-/* Added support for QOS_CLASS_MAINTENANCE */
-static inline pthread_priority_t
-_pthread_priority_make_newest(qos_class_t qc, int rel, unsigned long flags)
-{
-	pthread_priority_t cls;
-	switch (qc) {
-		case QOS_CLASS_USER_INTERACTIVE: cls = __PTHREAD_PRIORITY_CBIT_USER_INTERACTIVE; break;
-		case QOS_CLASS_USER_INITIATED: cls = __PTHREAD_PRIORITY_CBIT_USER_INITIATED; break;
-		case QOS_CLASS_DEFAULT: cls = __PTHREAD_PRIORITY_CBIT_DEFAULT; break;
-		case QOS_CLASS_UTILITY: cls = __PTHREAD_PRIORITY_CBIT_UTILITY; break;
-		case QOS_CLASS_BACKGROUND: cls = __PTHREAD_PRIORITY_CBIT_BACKGROUND; break;
-		case QOS_CLASS_MAINTENANCE: cls = __PTHREAD_PRIORITY_CBIT_MAINTENANCE; break;
-		case QOS_CLASS_UNSPECIFIED:
-		default:
-			cls = __PTHREAD_PRIORITY_CBIT_UNSPECIFIED;
-			rel = 1; // results in priority bits == 0 <rdar://problem/16184900>
-			break;
-	}
-
-	pthread_priority_t p =
-		(flags & _PTHREAD_PRIORITY_FLAGS_MASK) |
-		((cls << _PTHREAD_PRIORITY_QOS_CLASS_SHIFT) & _PTHREAD_PRIORITY_QOS_CLASS_MASK) |
-		(((uint8_t)rel - 1) & _PTHREAD_PRIORITY_PRIORITY_MASK);
-
-	return p;
-}
-
-/* Added support for QOS_CLASS_LEGACY and QOS_CLASS_INHERIT */
-static inline pthread_priority_t
-_pthread_priority_make_version2(qos_class_t qc, int rel, unsigned long flags)
-{
-	pthread_priority_t cls;
-	switch (qc) {
-		case QOS_CLASS_USER_INTERACTIVE: cls = __PTHREAD_PRIORITY_CBIT_USER_INTERACTIVE; break;
-		case QOS_CLASS_USER_INITIATED: cls = __PTHREAD_PRIORITY_CBIT_USER_INITIATED; break;
-		case QOS_CLASS_DEFAULT: cls = __PTHREAD_PRIORITY_CBIT_DEFAULT; break;
-		case QOS_CLASS_UTILITY: cls = __PTHREAD_PRIORITY_CBIT_UTILITY; break;
-		case QOS_CLASS_BACKGROUND: cls = __PTHREAD_PRIORITY_CBIT_BACKGROUND; break;
-		case QOS_CLASS_UNSPECIFIED:
-		default:
-			cls = __PTHREAD_PRIORITY_CBIT_UNSPECIFIED;
-			rel = 1; // results in priority bits == 0 <rdar://problem/16184900>
-			break;
-	}
-
-	/*
-	 * __PTHREAD_PRIORITY_CBIT_MAINTENANCE was defined as the 0th bit by shifting all the
-	 * existing bits to the left by one.  So for backward compatiblity for kernels that does
-	 * not support QOS_CLASS_MAINTENANCE, we have to make it up by shifting the cls bit to
-	 * right by one.
-	 */
-	cls >>= 1;
-
-	pthread_priority_t p =
-		(flags & _PTHREAD_PRIORITY_FLAGS_MASK) |
-		((cls << _PTHREAD_PRIORITY_QOS_CLASS_SHIFT) & _PTHREAD_PRIORITY_QOS_CLASS_MASK) |
-		(((uint8_t)rel - 1) & _PTHREAD_PRIORITY_PRIORITY_MASK);
-
-	return p;
-}
-
-/* QOS_CLASS_MAINTENANCE is supported */
-static inline qos_class_t
-_pthread_priority_get_qos_newest(pthread_priority_t priority)
-{
-	qos_class_t qc;
-	switch ((priority & _PTHREAD_PRIORITY_QOS_CLASS_MASK) >> _PTHREAD_PRIORITY_QOS_CLASS_SHIFT) {
-		case __PTHREAD_PRIORITY_CBIT_USER_INTERACTIVE: qc = QOS_CLASS_USER_INTERACTIVE; break;
-		case __PTHREAD_PRIORITY_CBIT_USER_INITIATED: qc = QOS_CLASS_USER_INITIATED; break;
-		case __PTHREAD_PRIORITY_CBIT_DEFAULT: qc = QOS_CLASS_DEFAULT; break;
-		case __PTHREAD_PRIORITY_CBIT_UTILITY: qc = QOS_CLASS_UTILITY; break;
-		case __PTHREAD_PRIORITY_CBIT_BACKGROUND: qc = QOS_CLASS_BACKGROUND; break;
-		case __PTHREAD_PRIORITY_CBIT_MAINTENANCE: qc = QOS_CLASS_MAINTENANCE; break;
-		case __PTHREAD_PRIORITY_CBIT_UNSPECIFIED:
-		default: qc = QOS_CLASS_UNSPECIFIED; break;
-	}
-	return qc;
-}
-
-/* QOS_CLASS_MAINTENANCE is not supported */
-static inline qos_class_t
-_pthread_priority_get_qos_version2(pthread_priority_t priority)
-{
-	qos_class_t qc;
-	pthread_priority_t cls;
-
-	cls = (priority & _PTHREAD_PRIORITY_QOS_CLASS_MASK) >> _PTHREAD_PRIORITY_QOS_CLASS_SHIFT;
-
-	/*
-	 * __PTHREAD_PRIORITY_CBIT_MAINTENANCE was defined as the 0th bit by shifting all the
-	 * existing bits to the left by one.  So for backward compatiblity for kernels that does
-	 * not support QOS_CLASS_MAINTENANCE, pthread_priority_make() shifted the cls bit to the
-	 * right by one.  Therefore we have to shift it back during decoding the priority bit.
-	 */
-	cls <<= 1;
-
-	switch (cls) {
-		case __PTHREAD_PRIORITY_CBIT_USER_INTERACTIVE: qc = QOS_CLASS_USER_INTERACTIVE; break;
-		case __PTHREAD_PRIORITY_CBIT_USER_INITIATED: qc = QOS_CLASS_USER_INITIATED; break;
-		case __PTHREAD_PRIORITY_CBIT_DEFAULT: qc = QOS_CLASS_DEFAULT; break;
-		case __PTHREAD_PRIORITY_CBIT_UTILITY: qc = QOS_CLASS_UTILITY; break;
-		case __PTHREAD_PRIORITY_CBIT_BACKGROUND: qc = QOS_CLASS_BACKGROUND; break;
-		case __PTHREAD_PRIORITY_CBIT_UNSPECIFIED:
-		default: qc = QOS_CLASS_UNSPECIFIED; break;
-	}
-	return qc;
-}
-
-#define _pthread_priority_get_relpri(priority) \
-	((int8_t)((priority & _PTHREAD_PRIORITY_PRIORITY_MASK) >> _PTHREAD_PRIORITY_PRIORITY_SHIFT) + 1)
-
-#define _pthread_priority_get_flags(priority) \
-	(priority & _PTHREAD_PRIORITY_FLAGS_MASK)
-
-#define _pthread_priority_split_newest(priority, qos, relpri) \
-	({ qos = _pthread_priority_get_qos_newest(priority); \
-	   relpri = (qos == QOS_CLASS_UNSPECIFIED) ? 0 : \
-		   _pthread_priority_get_relpri(priority); \
-	})
-
-#define _pthread_priority_split_version2(priority, qos, relpri) \
-	({ qos = _pthread_priority_get_qos_version2(priority); \
-	   relpri = (qos == QOS_CLASS_UNSPECIFIED) ? 0 : \
-		   _pthread_priority_get_relpri(priority); \
-	})
-
-/* <rdar://problem/15969976> Required for backward compatibility on older kernels. */
-#define _pthread_priority_make_version1(qos, relpri, flags) \
-	(((flags >> 15) & 0xffff0000) | \
-	((qos << 8) & 0x0000ff00) | \
-	(((uint8_t)relpri - 1) & 0x000000ff))
 
 /* userspace <-> kernel registration struct, for passing data to/from the kext during main thread init. */
 struct _pthread_registration_data {
@@ -224,7 +85,17 @@ struct _pthread_registration_data {
 	uint64_t dispatch_queue_offset; /* copy-in */
 	uint64_t /* pthread_priority_t */ main_qos; /* copy-out */
 	uint32_t tsd_offset; /* copy-in */
+	uint32_t return_to_kernel_offset; /* copy-in */
+	uint32_t mach_thread_self_offset; /* copy-in */
+	mach_vm_address_t stack_addr_hint; /* copy-out */
+	uint32_t mutex_default_policy; /* copy-out */
 } __attribute__ ((packed));
+
+/*
+ * "error" flags returned by fail condvar syscalls
+ */
+#define ECVCLEARED	0x100
+#define ECVPREPOST	0x200
 
 #ifdef KERNEL
 
@@ -236,29 +107,23 @@ struct _pthread_registration_data {
 	PTHREAD_FEATURE_SETSELF | \
 	PTHREAD_FEATURE_QOS_MAINTENANCE | \
 	PTHREAD_FEATURE_QOS_DEFAULT | \
-	PTHREAD_FEATURE_KEVENT )
+	PTHREAD_FEATURE_KEVENT | \
+	PTHREAD_FEATURE_WORKLOOP )
 
 extern pthread_callbacks_t pthread_kern;
 
 struct ksyn_waitq_element {
 	TAILQ_ENTRY(ksyn_waitq_element) kwe_list;	/* link to other list members */
 	void *          kwe_kwqqueue;            	/* queue blocked on */
-	uint32_t	kwe_state;			/* state */
+	thread_t        kwe_thread;
+	uint16_t        kwe_state;			/* state */
+	uint16_t        kwe_flags;
 	uint32_t        kwe_lockseq;			/* the sequence of the entry */
 	uint32_t	kwe_count;			/* upper bound on number of matches still pending */
 	uint32_t 	kwe_psynchretval;		/* thread retval */
 	void		*kwe_uth;			/* uthread */
-	uint64_t	kwe_tid;			/* tid of waiter */
 };
 typedef struct ksyn_waitq_element * ksyn_waitq_element_t;
-
-pthread_priority_t thread_qos_get_pthread_priority(int qos) __attribute__((const));
-int thread_qos_get_class_index(int qos) __attribute__((const));
-int pthread_priority_get_thread_qos(pthread_priority_t priority) __attribute__((const));
-int pthread_priority_get_class_index(pthread_priority_t priority) __attribute__((const));
-pthread_priority_t class_index_get_pthread_priority(int index) __attribute__((const));
-int class_index_get_thread_qos(int index) __attribute__((const));
-int qos_class_get_class_index(int qos) __attribute__((const));
 
 #define PTH_DEFAULT_STACKSIZE 512*1024
 #define MAX_PTHREAD_SIZE 64*1024
@@ -310,6 +175,9 @@ int _psynch_rw_unlock(proc_t p, user_addr_t rwlock, uint32_t lgenval, uint32_t u
 int _psynch_rw_wrlock(proc_t p, user_addr_t rwlock, uint32_t lgenval, uint32_t ugenval, uint32_t rw_wc, int flags, uint32_t *retval);
 int _psynch_rw_yieldwrlock(proc_t p, user_addr_t rwlock, uint32_t lgenval, uint32_t ugenval, uint32_t rw_wc, int flags, uint32_t *retval);
 
+void _pthread_find_owner(thread_t thread, struct stackshot_thread_waitinfo *waitinfo);
+void * _pthread_get_thread_kwq(thread_t thread);
+
 extern lck_grp_attr_t *pthread_lck_grp_attr;
 extern lck_grp_t *pthread_lck_grp;
 extern lck_attr_t *pthread_lck_attr;
@@ -318,17 +186,24 @@ extern thread_call_t psynch_thcall;
 
 struct uthread* current_uthread(void);
 
-// Call for the kernel's kevent system to request threads.  A list of QoS/event
-// counts should be provided, sorted by flags and then QoS class.  If the
-// identity of the thread to handle the request is known, it will be returned.
-// If a new thread must be created, NULL will be returned.
-thread_t _workq_reqthreads(struct proc *p, int requests_count,
-						   workq_reqthreads_req_t requests);
+int
+workq_create_threadstack(proc_t p, vm_map_t vmap, mach_vm_offset_t *out_addr);
 
-// Resolve a pthread_priority_t to a QoS/relative pri
-integer_t _thread_qos_from_pthread_priority(unsigned long pri, unsigned long *flags);
-// Clear out extraneous flags/pri info for putting in voucher
-pthread_priority_t _pthread_priority_canonicalize(pthread_priority_t pri, boolean_t for_propagation);
+int
+workq_destroy_threadstack(proc_t p, vm_map_t vmap, mach_vm_offset_t stackaddr);
+
+void
+workq_setup_thread(proc_t p, thread_t th, vm_map_t map, user_addr_t stackaddr,
+		mach_port_name_t kport, int th_qos, int setup_flags, int upcall_flags);
+
+int
+workq_handle_stack_events(proc_t p, thread_t th, vm_map_t map,
+		user_addr_t stackaddr, mach_port_name_t kport,
+		user_addr_t events, int nevents, int upcall_flags);
+
+void
+workq_markfree_threadstack(proc_t p, thread_t th, vm_map_t vmap,
+		user_addr_t stackaddr);
 
 #endif // KERNEL
 

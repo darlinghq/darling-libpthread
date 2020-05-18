@@ -24,6 +24,12 @@
 #ifndef __SYNCH_INTERNAL_H__
 #define __SYNCH_INTERNAL_H__
 
+// kwe_state
+enum {
+	KWE_THREAD_INWAIT = 1,
+	KWE_THREAD_PREPOST,
+	KWE_THREAD_BROADCAST,
+};
 
 #define _PTHREAD_MTX_OPT_PSHARED 0x010
 #define _PTHREAD_MTX_OPT_NOTIFY 0x1000	/* notify to drop mutex handling in cvwait */
@@ -43,13 +49,12 @@
 #define PTH_RWL_PBIT		0x04	// prepost (cv) pending in kernel
 
 #define PTH_RWL_MTX_WAIT	0x20 	// in cvar in mutex wait
-#define PTH_RWL_RBIT		0x40	// reader pending in kernel (not used)
-#define PTH_RWL_MBIT		0x40	// overlapping grants from kernel
+#define PTH_RWL_UBIT		0x40	// lock is unlocked (no readers or writers)
+#define PTH_RWL_MBIT		0x40	// overlapping grants from kernel (only in updateval)
 #define PTH_RWL_IBIT		0x80	// lock reset, held until first successful unlock
 
 #define PTHRW_RWL_INIT		PTH_RWL_IBIT	// reset on the lock bits (U)
-#define PTHRW_RWLOCK_INIT	(PTH_RWL_IBIT | PTH_RWL_RBIT)   // reset on the lock bits (U)
-#define PTH_RWLOCK_RESET_RBIT	((uint32_t)~PTH_RWL_RBIT)
+#define PTHRW_RWLOCK_INIT	(PTH_RWL_IBIT | PTH_RWL_UBIT)   // reset on the lock bits (U)
 
 // S word
 #define PTH_RWS_SBIT		0x01	// kernel transition seq not set yet
@@ -66,7 +71,6 @@
 #define PTHRW_RWS_SAVEMASK	(PTH_RWS_WSVBIT)	// save bits mask
 
 #define PTHRW_RWS_INIT		PTH_RWS_SBIT	// reset on the lock bits (U)
-#define PTHRW_SW_Reset_BIT_MASK (PTHRW_BIT_MASK & ~PTH_RWS_SBIT)	// All bits except the S bit
 
 // rw_flags
 #define PTHRW_KERN_PROCESS_SHARED	0x10
@@ -75,15 +79,19 @@
 #define PTHREAD_MTX_TID_SWITCHING (uint64_t)-1
 
 // L word tests
-#define can_rwl_readinuser(x) (((x) & (PTH_RWL_WBIT | PTH_RWL_KBIT)) == 0)
 #define is_rwl_ebit_set(x) (((x) & PTH_RWL_EBIT) != 0)
 #define is_rwl_wbit_set(x) (((x) & PTH_RWL_WBIT) != 0)
 #define is_rwl_ebit_clear(x) (((x) & PTH_RWL_EBIT) == 0)
 #define is_rwl_readoverlap(x) (((x) & PTH_RWL_MBIT) != 0)
 
 // S word tests
-#define is_rws_setseq(x) (((x) & PTH_RWS_SBIT))
-#define is_rws_setunlockinit(x) (((x) & PTH_RWS_IBIT))
+#define is_rws_sbit_set(x) (((x) & PTH_RWS_SBIT) != 0)
+#define is_rws_unlockinit_set(x) (((x) & PTH_RWS_IBIT) != 0)
+#define is_rws_savemask_set(x) (((x) & PTHRW_RWS_SAVEMASK) != 0)
+#define is_rws_pbit_set(x) (((x) & PTH_RWS_CV_PBIT) != 0)
+
+// kwe_flags
+#define KWE_FLAG_LOCKPREPOST	0x1 // cvwait caused a lock prepost
 
 static inline int
 is_seqlower(uint32_t x, uint32_t y)

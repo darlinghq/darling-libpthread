@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012 Apple Inc. All rights reserved.
+ * Copyright (c) 2017 Apple Inc. All rights reserved.
  *
  * @APPLE_LICENSE_HEADER_START@
  *
@@ -21,35 +21,15 @@
  * @APPLE_LICENSE_HEADER_END@
  */
 
-#include "internal.h"
-#include <dlfcn.h>
-#include <_simple.h>
+#ifndef DARWINTEST_DEFAULTS_H
+#define DARWINTEST_DEFAULTS_H
+
+#include <darwintest.h>
+
+T_GLOBAL_META (
+    T_META_TIMEOUT(30),
+    T_META_LTEPHASE(LTE_POSTINIT)
+);
 
 
-#define __SIGABRT 6
-
-/* We should move abort() into Libsyscall, if possible. */
-int __getpid(void);
-
-PTHREAD_NORETURN int
-__kill(int pid, int signum, int posix);
-
-void
-__pthread_abort(void)
-{
-	PTHREAD_NORETURN void (*_libc_abort)(void);
-	_libc_abort = dlsym(RTLD_DEFAULT, "abort");
-
-	if (_libc_abort) {
-		_libc_abort();
-	} else {
-		__kill(__getpid(), __SIGABRT, 0);
-	}
-	__builtin_trap();
-}
-
-void
-__pthread_abort_reason(const char *fmt, ...)
-{
-	__pthread_abort();
-}
+#endif // DARWINTEST_DEFAULTS_H

@@ -2,14 +2,14 @@
  * Copyright (c) 2000-2003, 2007, 2012 Apple Inc. All rights reserved.
  *
  * @APPLE_LICENSE_HEADER_START@
- * 
+ *
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
  * compliance with the License. Please obtain a copy of the License at
  * http://www.opensource.apple.com/apsl/ and read it before using this
  * file.
- * 
+ *
  * The Original Code and all software distributed under the License are
  * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
@@ -17,29 +17,29 @@
  * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
  * Please see the License for the specific language governing rights and
  * limitations under the License.
- * 
+ *
  * @APPLE_LICENSE_HEADER_END@
  */
 /*
- * Copyright 1996 1995 by Open Software Foundation, Inc. 1997 1996 1995 1994 1993 1992 1991  
- *              All Rights Reserved 
- *  
- * Permission to use, copy, modify, and distribute this software and 
- * its documentation for any purpose and without fee is hereby granted, 
- * provided that the above copyright notice appears in all copies and 
- * that both the copyright notice and this permission notice appear in 
- * supporting documentation. 
- *  
- * OSF DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE 
- * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS 
- * FOR A PARTICULAR PURPOSE. 
- *  
- * IN NO EVENT SHALL OSF BE LIABLE FOR ANY SPECIAL, INDIRECT, OR 
- * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM 
- * LOSS OF USE, DATA OR PROFITS, WHETHER IN ACTION OF CONTRACT, 
- * NEGLIGENCE, OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION 
- * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. 
- * 
+ * Copyright 1996 1995 by Open Software Foundation, Inc. 1997 1996 1995 1994 1993 1992 1991
+ *              All Rights Reserved
+ *
+ * Permission to use, copy, modify, and distribute this software and
+ * its documentation for any purpose and without fee is hereby granted,
+ * provided that the above copyright notice appears in all copies and
+ * that both the copyright notice and this permission notice appear in
+ * supporting documentation.
+ *
+ * OSF DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE
+ * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE.
+ *
+ * IN NO EVENT SHALL OSF BE LIABLE FOR ANY SPECIAL, INDIRECT, OR
+ * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN ACTION OF CONTRACT,
+ * NEGLIGENCE, OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
  */
 /*
  * MkLinux
@@ -54,6 +54,14 @@
 #include "internal.h"
 #include <TargetConditionals.h>
 
+#ifndef PTHREAD_KEY_LEGACY_SUPPORT
+#if TARGET_OS_DRIVERKIT
+#define PTHREAD_KEY_LEGACY_SUPPORT 0
+#else
+#define PTHREAD_KEY_LEGACY_SUPPORT 1
+#endif // TARGET_OS_DRIVERKIT
+#endif // PTHREAD_KEY_LEGACY_SUPPORT
+
 #if !VARIANT_DYLD
 // __pthread_tsd_first is first static key managed by libpthread.
 // __pthread_tsd_max is the (observed) end of static key destructors.
@@ -61,12 +69,18 @@
 // __pthread_tsd_end is the end of dynamic keys.
 
 static const int __pthread_tsd_first = __TSD_RESERVED_MAX + 1;
-static int __pthread_tsd_max = __pthread_tsd_first;
 static const int __pthread_tsd_start = _INTERNAL_POSIX_THREAD_KEYS_MAX;
 static const int __pthread_tsd_end = _INTERNAL_POSIX_THREAD_KEYS_END;
 
-static int __pthread_key_legacy_behaviour = 0;
-static int __pthread_key_legacy_behaviour_log = 0;
+static int __pthread_tsd_max = __pthread_tsd_first;
+static _pthread_lock __pthread_tsd_lock = _PTHREAD_LOCK_INITIALIZER;
+#if PTHREAD_KEY_LEGACY_SUPPORT
+static bool __pthread_key_legacy_behaviour = 0;
+static bool __pthread_key_legacy_behaviour_log = 0;
+#else
+#define __pthread_key_legacy_behaviour 0
+#define _pthread_tsd_cleanup_legacy(...)
+#endif // PTHREAD_KEY_LEGACY_SUPPORT
 
 // Omit support for pthread key destructors in the static archive for dyld.
 // dyld does not create and destroy threads so these are not necessary.
@@ -80,15 +94,19 @@ static struct {
 	uintptr_t destructor;
 } _pthread_keys[_INTERNAL_POSIX_THREAD_KEYS_END];
 
-static _pthread_lock tsd_lock = _PTHREAD_LOCK_INITIALIZER;
-
 // The pthread_tsd destruction order can be reverted to the old (pre-10.11) order
 // by setting this environment variable.
 void
 _pthread_key_global_init(const char *envp[])
 {
-	__pthread_key_legacy_behaviour = _simple_getenv(envp, "PTHREAD_KEY_LEGACY_DESTRUCTOR_ORDER") ? 1 : 0;
-	__pthread_key_legacy_behaviour_log = _simple_getenv(envp, "PTHREAD_KEY_LEGACY_DESTRUCTOR_ORDER_LOG") ? 1 : 0;
+#if PTHREAD_KEY_LEGACY_SUPPORT
+	if (_simple_getenv(envp, "PTHREAD_KEY_LEGACY_DESTRUCTOR_ORDER")) {
+		__pthread_key_legacy_behaviour = true;
+	}
+	if (_simple_getenv(envp, "PTHREAD_KEY_LEGACY_DESTRUCTOR_ORDER_LOG")) {
+		__pthread_key_legacy_behaviour_log = true;
+	}
+#endif // PTHREAD_KEY_LEGACY_SUPPORT
 }
 
 // Returns true if successful, false if destructor was already set.
@@ -133,7 +151,7 @@ pthread_key_create(pthread_key_t *key, void (*destructor)(void *))
 	int res = EAGAIN; // Returns EAGAIN if key cannot be allocated.
 	pthread_key_t k;
 
-	_PTHREAD_LOCK(tsd_lock);
+	_PTHREAD_LOCK(__pthread_tsd_lock);
 	for (k = __pthread_tsd_start; k < __pthread_tsd_end; k++) {
 		if (_pthread_key_set_destructor(k, destructor)) {
 			*key = k;
@@ -141,7 +159,7 @@ pthread_key_create(pthread_key_t *key, void (*destructor)(void *))
 			break;
 		}
 	}
-	_PTHREAD_UNLOCK(tsd_lock);
+	_PTHREAD_UNLOCK(__pthread_tsd_lock);
 
 	return res;
 }
@@ -151,12 +169,12 @@ pthread_key_delete(pthread_key_t key)
 {
 	int res = EINVAL; // Returns EINVAL if key is not allocated.
 
-	_PTHREAD_LOCK(tsd_lock);
+	_PTHREAD_LOCK(__pthread_tsd_lock);
 	if (key >= __pthread_tsd_start && key < __pthread_tsd_end) {
 		if (_pthread_key_unset_destructor(key)) {
 			struct _pthread *p;
 			_PTHREAD_LOCK(_pthread_list_lock);
-			TAILQ_FOREACH(p, &__pthread_head, plist) {
+			TAILQ_FOREACH(p, &__pthread_head, tl_plist) {
 				// No lock for word-sized write.
 				p->tsd[key] = 0;
 			}
@@ -164,7 +182,7 @@ pthread_key_delete(pthread_key_t key)
 			res = 0;
 		}
 	}
-	_PTHREAD_UNLOCK(tsd_lock);
+	_PTHREAD_UNLOCK(__pthread_tsd_lock);
 
 	return res;
 }
@@ -188,7 +206,7 @@ pthread_setspecific(pthread_key_t key, const void *value)
 				_pthread_key_set_destructor(key, NULL);
 			}
 			if (key > self->max_tsd_key) {
-				self->max_tsd_key = (int)key;
+				self->max_tsd_key = (uint16_t)key;
 			}
 		}
 	}
@@ -236,9 +254,6 @@ _pthread_tsd_cleanup_key(pthread_t self, pthread_key_t key)
 }
 #endif // !VARIANT_DYLD
 
-#import <_simple.h>
-#import <dlfcn.h>
-
 #if !VARIANT_DYLD
 static void
 _pthread_tsd_cleanup_new(pthread_t self)
@@ -260,6 +275,9 @@ _pthread_tsd_cleanup_new(pthread_t self)
 	self->max_tsd_key = 0;
 }
 
+#if PTHREAD_KEY_LEGACY_SUPPORT
+#import <_simple.h>
+#import <dlfcn.h>
 static void
 _pthread_tsd_behaviour_check(pthread_t self)
 {
@@ -269,7 +287,7 @@ _pthread_tsd_behaviour_check(pthread_t self)
 	Dl_info i;
 	pthread_key_t k;
 
-	for (k = __pthread_tsd_start; k <= __pthread_tsd_end; k++) {
+	for (k = __pthread_tsd_start; k < __pthread_tsd_end; k++) {
 		void (*destructor)(void *);
 		if (_pthread_key_get_destructor(k, &destructor)) {
 			void **ptr = &self->tsd[k];
@@ -317,6 +335,7 @@ _pthread_tsd_cleanup_legacy(pthread_t self)
 		}
 	}
 }
+#endif // PTHREAD_KEY_LEGACY_SUPPORT
 #endif // !VARIANT_DYLD
 
 void
@@ -342,12 +361,12 @@ pthread_key_init_np(int key, void (*destructor)(void *))
 {
 	int res = EINVAL; // Returns EINVAL if key is out of range.
 	if (key >= __pthread_tsd_first && key < __pthread_tsd_start) {
-		_PTHREAD_LOCK(tsd_lock);
+		_PTHREAD_LOCK(__pthread_tsd_lock);
 		_pthread_key_set_destructor(key, destructor);
 		if (key > __pthread_tsd_max) {
 			__pthread_tsd_max = key;
 		}
-		_PTHREAD_UNLOCK(tsd_lock);
+		_PTHREAD_UNLOCK(__pthread_tsd_lock);
 		res = 0;
 	}
 	return res;
@@ -358,5 +377,7 @@ pthread_key_init_np(int key, void (*destructor)(void *))
 pthread_t
 pthread_self(void)
 {
-	return _pthread_getspecific_direct(_PTHREAD_TSD_SLOT_PTHREAD_SELF);
+	pthread_t self = _pthread_self_direct();
+	_pthread_validate_signature(self);
+	return self;
 }

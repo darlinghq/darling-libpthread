@@ -42,7 +42,7 @@ _pthread_set_errno_direct(int value)
 	*((int*)_pthread_getspecific_direct(_PTHREAD_TSD_SLOT_ERRNO)) = value;
 }
 
-__OSX_AVAILABLE_STARTING(__MAC_10_9, __IPHONE_7_0)
+__API_AVAILABLE(macos(10.9), ios(7.0))
 pthread_t pthread_main_thread_np(void);
 
 struct _libpthread_functions {
@@ -63,17 +63,17 @@ struct _libpthread_functions {
  * If this is used on a workqueue (dispatch) thread, it MUST be unset with
  * pthread_fchdir_np(-1) before returning.
  *
+ * posix_spawn_file_actions_addchdir_np is a better approach if this call would
+ * only be used to spawn a new process with a given working directory.
+ *
  * @param path
  * The path of the new working directory.
  *
  * @result
  * 0 upon success, -1 upon error and errno is set.
  */
-__OSX_AVAILABLE(10.12)
-__IOS_AVAILABLE(10.0)
-__TVOS_AVAILABLE(10.0)
-__WATCHOS_AVAILABLE(3.0)
-int pthread_chdir_np(char *path);
+__API_AVAILABLE(macos(10.12), ios(10.0), tvos(10.0), watchos(3.0))
+int pthread_chdir_np(const char *path);
 
 /*!
  * @function pthread_fchdir_np
@@ -86,6 +86,9 @@ int pthread_chdir_np(char *path);
  * directory fd.  If this is used on a workqueue (dispatch) thread, it MUST be
  * unset with pthread_fchdir_np(-1) before returning.
  *
+ * posix_spawn_file_actions_addfchdir_np is a better approach if this call would
+ * only be used to spawn a new process with a given working directory.
+ *
  * @param fd
  * A file descriptor to the new working directory.  Pass -1 to unset the
  * per-thread working directory.
@@ -93,12 +96,14 @@ int pthread_chdir_np(char *path);
  * @result
  * 0 upon success, -1 upon error and errno is set.
  */
-__OSX_AVAILABLE(10.12)
-__IOS_AVAILABLE(10.0)
-__TVOS_AVAILABLE(10.0)
-__WATCHOS_AVAILABLE(3.0)
+__API_AVAILABLE(macos(10.12), ios(10.0), tvos(10.0), watchos(3.0))
 int pthread_fchdir_np(int fd);
 
+__API_AVAILABLE(macos(10.14), ios(12.0), tvos(12.0), watchos(5.0))
+int pthread_attr_setcpupercent_np(pthread_attr_t * __restrict, int, unsigned long);
+
+__API_AVAILABLE(macos(10.15), ios(13.0), tvos(13.0), watchos(6.0))
+int pthread_current_stack_contains_np(const void *, size_t);
 
 #ifdef _os_tsd_get_base
 
@@ -113,17 +118,17 @@ __header_always_inline uint64_t
 _pthread_threadid_self_np_direct(void)
 {
 #ifndef __i386__
-    if (_pthread_has_direct_tsd()) {
+	if (_pthread_has_direct_tsd()) {
 #ifdef OS_GS_RELATIVE
-        return *(uint64_t OS_GS_RELATIVE *)(_PTHREAD_STRUCT_DIRECT_THREADID_OFFSET);
+		return *(uint64_t OS_GS_RELATIVE *)(_PTHREAD_STRUCT_DIRECT_THREADID_OFFSET);
 #else
-        return *(uint64_t*)((char *)_os_tsd_get_base() + _PTHREAD_STRUCT_DIRECT_THREADID_OFFSET);
+		return *(uint64_t*)((char *)_os_tsd_get_base() + _PTHREAD_STRUCT_DIRECT_THREADID_OFFSET);
 #endif
-    }
+	}
 #endif
-    uint64_t threadid = 0;
-    pthread_threadid_np(NULL, &threadid);
-    return threadid;
+	uint64_t threadid = 0;
+	pthread_threadid_np(NULL, &threadid);
+	return threadid;
 }
 
 #endif // _os_tsd_get_base

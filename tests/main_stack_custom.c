@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <pthread.h>
-#include <darwintest.h>
+#include "darwintest_defaults.h"
 #include <machine/vmparam.h>
 
 T_DECL(main_stack_custom, "tests the reported values for a custom main thread stack"){
@@ -14,7 +14,7 @@ T_DECL(main_stack_custom, "tests the reported values for a custom main thread st
 
 	struct rlimit lim;
 	T_QUIET; T_ASSERT_POSIX_SUCCESS(getrlimit(RLIMIT_STACK, &lim), NULL);
-	lim.rlim_cur = lim.rlim_cur / 8;
+	lim.rlim_cur = lim.rlim_cur + 32 * PAGE_SIZE;
 	T_EXPECT_EQ(setrlimit(RLIMIT_STACK, &lim), -1, "setrlimit for stack should fail with custom stack");
 	T_EXPECT_EQ((size_t)STACKSIZE, pthread_get_stacksize_np(pthread_self()), "reported stacksize shouldn't change");
 }

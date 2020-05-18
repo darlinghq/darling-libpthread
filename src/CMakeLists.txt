@@ -14,15 +14,13 @@ set(pthread_common_sources
 	pthread.c
 	pthread_cond.c
 	pthread_cwd.c
+	pthread_dependency.c
 	pthread_mutex.c
-	pthread_mutex_up.c
 	pthread_rwlock.c
-	pthread_support.c
 	pthread_tsd.c
 	pthread_cancelable.c
 	qos.c
-	resolver.c
-	thread_setup.c
+	resolver/resolver.c
 	pthread_asm.S
 )
 set(pthread_sources
