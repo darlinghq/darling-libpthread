@@ -1802,9 +1802,11 @@ parse_ptr_munge_params(const char *envp[], const char *apple[])
 #if !DEBUG
 	}
 
+#ifndef DARLING
 	if (!token) {
 		PTHREAD_INTERNAL_CRASH(token, "Token from the kernel is 0");
 	}
+#endif
 #endif // DEBUG
 
 	_pthread_ptr_munge_token = token;
@@ -2088,9 +2090,11 @@ _pthread_bsdthread_init(struct _pthread_registration_data *data)
 				PTHREAD_FEATURE_SETSELF |
 				PTHREAD_FEATURE_QOS_MAINTENANCE |
 				PTHREAD_FEATURE_QOS_DEFAULT;
+#ifdef DARLING
 		if ((rv & required_features) != required_features) {
 			PTHREAD_INTERNAL_CRASH(rv, "Missing required kernel support");
 		}
+#endif
 		__pthread_supported_features = rv;
 	}
 
@@ -2175,7 +2179,9 @@ _pthread_wqthread_priority(int flags)
 		pp |= _PTHREAD_PRIORITY_SCHED_PRI_MASK;
 		pp |= (flags & WQ_FLAG_THREAD_PRIO_MASK);
 	} else {
+#ifndef DARLING
 		PTHREAD_INTERNAL_CRASH(flags, "Missing priority");
+#endif
 	}
 	return pp;
 }
@@ -2411,9 +2417,11 @@ pthread_workqueue_setdispatch_np(pthread_workqueue_function_t worker_func)
 int
 _pthread_workqueue_supported(void)
 {
+#ifndef DARLING
 	if (os_unlikely(!__pthread_supported_features)) {
 		PTHREAD_INTERNAL_CRASH(0, "libpthread has not been initialized");
 	}
+#endif
 
 	return __pthread_supported_features;
 }
