@@ -76,5 +76,5 @@ install(TARGETS system_pthread DESTINATION libexec/darling/usr/lib/system)
 add_darling_static_library(pthread_static SOURCES ${pthread_common_sources})
 SET_TARGET_PROPERTIES(pthread_static PROPERTIES COMPILE_FLAGS "-DVARIANT_DYLD=1 -DVARIANT_STATIC=1")
 make_fat(pthread_static)
-add_dependencies(pthread_static ranlib x86_64-apple-darwin11-ar)
+add_dependencies(pthread_static ranlib ${APPLE_TARGET_TRIPLET_PRIMARY}-ar)
 
