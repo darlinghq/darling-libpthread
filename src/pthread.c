@@ -2202,9 +2202,7 @@ _pthread_wqthread_priority(int flags)
 		pp |= _PTHREAD_PRIORITY_SCHED_PRI_MASK;
 		pp |= (flags & WQ_FLAG_THREAD_PRIO_MASK);
 	} else {
-#ifndef DARLING
 		PTHREAD_INTERNAL_CRASH(flags, "Missing priority");
-#endif
 	}
 	return pp;
 }
