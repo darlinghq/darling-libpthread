@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.4.0)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -nostdinc -std=gnu11")
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/resolver)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../private)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)
@@ -18,6 +19,8 @@ add_definitions(
 	-D_FORTIFY_SOURCE=0
 	-D__PTHREAD_BUILDING_PTHREAD__=1
 	-D__PTHREAD_EXPOSE_INTERNALS__
+
+	-DDARLING_BUILDING_OLD_PTHREAD=1
 )
 
 set(pthread_common_sources
@@ -26,7 +29,8 @@ set(pthread_common_sources
 	pthread_cond.c
 	pthread_cwd.c
 	pthread_dependency.c
-	pthread_mutex.c
+	#pthread_mutex.c
+	old-pthread/pthread_mutex.c
 	pthread_rwlock.c
 	pthread_tsd.c
 	pthread_cancelable.c
