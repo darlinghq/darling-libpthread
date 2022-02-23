@@ -20,7 +20,7 @@ add_definitions(
 	-D__PTHREAD_BUILDING_PTHREAD__=1
 	-D__PTHREAD_EXPOSE_INTERNALS__
 
-	-DDARLING_BUILDING_OLD_PTHREAD=1
+	#-DDARLING_BUILDING_OLD_PTHREAD=1
 )
 
 set(pthread_common_sources
@@ -29,8 +29,8 @@ set(pthread_common_sources
 	pthread_cond.c
 	pthread_cwd.c
 	pthread_dependency.c
-	#pthread_mutex.c
-	old-pthread/pthread_mutex.c
+	pthread_mutex.c
+	#old-pthread/pthread_mutex.c
 	pthread_rwlock.c
 	pthread_tsd.c
 	pthread_cancelable.c
