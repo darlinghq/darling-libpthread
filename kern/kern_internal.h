@@ -29,6 +29,8 @@
 #ifndef _SYS_PTHREAD_INTERNAL_H_
 #define _SYS_PTHREAD_INTERNAL_H_
 
+#include <TargetConditionals.h>
+
 #include <pthread/bsdthread_private.h>
 #include <pthread/priority_private.h>
 #include <pthread/workqueue_syscalls.h>
@@ -41,24 +43,23 @@ struct ksyn_waitq_element;
 #include <sys/pthread_shims.h>
 #include <sys/queue.h>
 #include <sys/proc_info.h>
-
-#ifdef __arm64__
-#define PTHREAD_INLINE_RMW_ATOMICS 0
-#else
-#define PTHREAD_INLINE_RMW_ATOMICS 1
-#endif
 #endif // KERNEL
 
 #include "kern/synch_internal.h"
-#include "kern/workqueue_internal.h"
 #include "kern/kern_trace.h"
 #include "pthread/qos.h"
-#include "private/qos_private.h"
+#include "pthread/qos_private.h"
 
 /* pthread userspace SPI feature checking, these constants are returned from bsdthread_register,
  * as a bitmask, to inform userspace of the supported feature set. Old releases of OS X return
  * from this call either zero or -1, allowing us to return a positive number for feature bits.
  */
+
+/* Note: This 'feature' is determined by an entitlement.
+ * XXX Re-order to the end of the list when practical.
+ */
+#define PTHREAD_FEATURE_JIT_ALLOWLIST	0x200		/* Enforce JIT callback allowlist */
+
 #define PTHREAD_FEATURE_DISPATCHFUNC	0x01		/* same as WQOPS_QUEUE_NEWSPISUPP, checks for dispatch function support */
 #define PTHREAD_FEATURE_FINEPRIO		0x02		/* are fine grained prioirities available */
 #define PTHREAD_FEATURE_BSDTHREADCTL	0x04		/* is the bsdthread_ctl syscall available */
@@ -88,7 +89,11 @@ struct _pthread_registration_data {
 	uint32_t return_to_kernel_offset; /* copy-in */
 	uint32_t mach_thread_self_offset; /* copy-in */
 	mach_vm_address_t stack_addr_hint; /* copy-out */
+#define _PTHREAD_REG_DEFAULT_POLICY_MASK 0xff
+#define _PTHREAD_REG_DEFAULT_USE_ULOCK 0x100
+#define _PTHREAD_REG_DEFAULT_USE_ADAPTIVE_SPIN 0x200
 	uint32_t mutex_default_policy; /* copy-out */
+	uint32_t joinable_offset_bits; /* copy-in */
 } __attribute__ ((packed));
 
 /*
@@ -96,6 +101,16 @@ struct _pthread_registration_data {
  */
 #define ECVCLEARED	0x100
 #define ECVPREPOST	0x200
+
+#if !defined(VARIANT_DYLD)
+#define VARIANT_DYLD 0
+#endif // !defined(VARIANT_DYLD)
+
+#if TARGET_OS_OSX && TARGET_CPU_ARM64 && !VARIANT_DYLD
+#define _PTHREAD_CONFIG_JIT_WRITE_PROTECT 1
+#else
+#define _PTHREAD_CONFIG_JIT_WRITE_PROTECT 0
+#endif
 
 #ifdef KERNEL
 
@@ -206,6 +221,9 @@ workq_markfree_threadstack(proc_t p, thread_t th, vm_map_t vmap,
 		user_addr_t stackaddr);
 
 #endif // KERNEL
+
+// magical `nkevents` values for _pthread_wqthread
+#define WORKQ_EXIT_THREAD_NKEVENT   (-1)
 
 #endif /* _SYS_PTHREAD_INTERNAL_H_ */
 
