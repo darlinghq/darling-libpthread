@@ -253,7 +253,11 @@ struct pthread_mutexattr_s {
 		protocol:2,
 		type:2,
 		pshared:2,
+#ifdef DARLING_BUILDING_OLD_PTHREAD
+		policy:3,
+#else
 		opt:3,
+#endif
 		unused:23;
 };
 

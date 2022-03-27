@@ -559,7 +559,11 @@ static pthread_t
 _pthread_allocate(const pthread_attr_t *attrs, void **stack,
 		bool from_mach_thread)
 {
+#ifdef DARLING
+	mach_vm_address_t allocaddr = NULL;
+#else
 	mach_vm_address_t allocaddr = __pthread_stack_hint;
+#endif
 	size_t allocsize, guardsize, stacksize, pthreadoff;
 	kern_return_t kr;
 	pthread_t t;
@@ -569,9 +573,11 @@ _pthread_allocate(const pthread_attr_t *attrs, void **stack,
 		PTHREAD_CLIENT_CRASH(attrs->stacksize, "Stack size in attrs is too small");
 	}
 
+#ifndef DARLING
 	if (os_unlikely((mach_vm_address_t)attrs->stackaddr & vm_page_mask)) {
 		PTHREAD_CLIENT_CRASH(attrs->stackaddr, "Unaligned stack addr in attrs");
 	}
+#endif
 
 	// Allocate a pthread structure if necessary
 
@@ -592,9 +598,20 @@ _pthread_allocate(const pthread_attr_t *attrs, void **stack,
 		allocsize = mach_vm_round_page(allocsize);
 	}
 
+	// TODO: implement mach_vm_map for Darling
+#ifdef DARLING
+	allocaddr = mmap(NULL, allocsize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+	if (allocaddr == (void*)-1) {
+		// TODO: check errno?
+		kr = KERN_FAILURE;
+	} else {
+		kr = KERN_SUCCESS;
+	}
+#else
 	kr = mach_vm_map(mach_task_self(), &allocaddr, allocsize, vm_page_size - 1,
 			 VM_MAKE_TAG(VM_MEMORY_STACK)| VM_FLAGS_ANYWHERE, MEMORY_OBJECT_NULL,
 			 0, FALSE, VM_PROT_DEFAULT, VM_PROT_ALL, VM_INHERIT_DEFAULT);
+#endif
 
 	if (kr != KERN_SUCCESS) {
 		kr = mach_vm_allocate(mach_task_self(), &allocaddr, allocsize,
@@ -632,8 +649,14 @@ _pthread_allocate(const pthread_attr_t *attrs, void **stack,
 	// newly allocated stack. Return the highest address
 	// of the stack.
 	if (guardsize) {
+#ifdef DARLING
+		if (mprotect(allocaddr, guardsize, PROT_NONE) == -1) {
+			// TODO: handle failure?
+		}
+#else
 		(void)mach_vm_protect(mach_task_self(), allocaddr, guardsize,
 				FALSE, VM_PROT_NONE);
+#endif
 	}
 
 	// Thread structure resides at the top of the stack (when using a
@@ -1911,9 +1934,11 @@ parse_ptr_munge_params(const char *envp[], const char *apple[])
 #if !DEBUG
 	}
 
+#ifndef DARLING
 	if (!token) {
 		PTHREAD_INTERNAL_CRASH(token, "Token from the kernel is 0");
 	}
+#endif
 #endif // !DEBUG
 
 	_pthread_ptr_munge_token = token;
@@ -2213,9 +2238,11 @@ _pthread_bsdthread_init(struct _pthread_registration_data *data)
 				PTHREAD_FEATURE_SETSELF |
 				PTHREAD_FEATURE_QOS_MAINTENANCE |
 				PTHREAD_FEATURE_QOS_DEFAULT;
+#ifdef DARLING
 		if ((rv & required_features) != required_features) {
 			PTHREAD_INTERNAL_CRASH(rv, "Missing required kernel support");
 		}
+#endif
 		__pthread_supported_features = rv;
 	}
 
@@ -2534,9 +2561,11 @@ pthread_workqueue_setdispatch_np(pthread_workqueue_function_t worker_func)
 int
 _pthread_workqueue_supported(void)
 {
+#ifndef DARLING
 	if (os_unlikely(!__pthread_supported_features)) {
 		PTHREAD_INTERNAL_CRASH(0, "libpthread has not been initialized");
 	}
+#endif
 
 	return __pthread_supported_features;
 }
