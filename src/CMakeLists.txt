@@ -2,7 +2,7 @@ project(libc-pthreads)
 
 cmake_minimum_required(VERSION 3.10)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -nostdinc -std=gnu11")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -nostdinc -std=gnu11 -Wno-error=int-conversion")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/resolver)
