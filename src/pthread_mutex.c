@@ -56,6 +56,10 @@
 
 #ifndef BUILDING_VARIANT /* [ */
 
+#ifdef DARLING
+extern bool _os_xbs_chrooted;
+#endif
+
 #ifdef PLOCKSTAT
 #include "plockstat.h"
 /* This function is never called and exists to provide never-fired dtrace

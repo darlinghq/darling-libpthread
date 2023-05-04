@@ -76,6 +76,10 @@
 
 #endif /* (!_POSIX_C_SOURCE && !_XOPEN_SOURCE) || _DARWIN_C_SOURCE || __cplusplus */
 
+#ifdef DARLING
+#include <pthread_impl.h>
+#endif
+
 /*
  * These symbols indicate which [optional] features are available
  * They can be tested at compile time via '#ifdef XXX'

@@ -19,6 +19,7 @@ add_definitions(
 	-D_FORTIFY_SOURCE=0
 	-D__PTHREAD_BUILDING_PTHREAD__=1
 	-D__PTHREAD_EXPOSE_INTERNALS__
+	-D__POSIX_LIB__
 
 	#-DDARLING_BUILDING_OLD_PTHREAD=1
 )
@@ -41,10 +42,6 @@ set(pthread_common_sources
 set(pthread_sources
 	${pthread_common_sources}
 	variants/pthread_cancelable_cancel.c
-	variants/pthread_cancelable_legacy.c
-	variants/pthread_cond_legacy.c
-	variants/pthread_mutex_legacy.c
-	variants/pthread_rwlock_legacy.c
 )
 
 SET_SOURCE_FILES_PROPERTIES(pthread_mutex.c PROPERTIES COMPILE_FLAGS "${CMAKE_C_FLAGS}")
@@ -53,15 +50,6 @@ SET_SOURCE_FILES_PROPERTIES(pthread_cancelable.c PROPERTIES COMPILE_FLAGS "${CMA
 SET_SOURCE_FILES_PROPERTIES(pthread_cond.c PROPERTIES COMPILE_FLAGS "${CMAKE_C_FLAGS} -DLIBC_ALIAS_PTHREAD_COND_TIMEDWAIT -DLIBC_ALIAS_PTHREAD_COND_INIT -DLIBC_ALIAS_PTHREAD_COND_WAIT")
 SET_SOURCE_FILES_PROPERTIES(pthread_rwlock.c PROPERTIES COMPILE_FLAGS "${CMAKE_C_FLAGS} -DLIBC_ALIAS_PTHREAD_RWLOCK_INIT -DLIBC_ALIAS_PTHREAD_RWLOCK_WRLOCK -DLIBC_ALIAS_PTHREAD_RWLOCK_RDLOCK -DLIBC_ALIAS_PTHREAD_RWLOCK_UNLOCK -DLIBC_ALIAS_PTHREAD_RWLOCK_DESTROY -DLIBC_ALIAS_PTHREAD_RWLOCK_TRYRDLOCK -DLIBC_ALIAS_PTHREAD_RWLOCK_TRYWRLOCK")
 
-set_source_files_properties(
-	#variants/pthread_cancelable_cancel.c
-	variants/pthread_cancelable_legacy.c
-	variants/pthread_cond_legacy.c
-	variants/pthread_mutex_legacy.c
-	variants/pthread_rwlock_legacy.c
-	PROPERTIES COMPILE_FLAGS
-		"-include ${CMAKE_CURRENT_SOURCE_DIR}/../nonstd.h ${CMAKE_C_FLAGS}"
-)
 
 set(DYLIB_INSTALL_NAME "/usr/lib/system/libsystem_pthread.dylib")
 add_circular(system_pthread FAT
