@@ -1,6 +1,6 @@
 project(libc-pthreads)
 
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.13)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -nostdinc -std=gnu11 -Wno-error=int-conversion")
 
