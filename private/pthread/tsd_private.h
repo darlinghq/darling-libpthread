@@ -236,6 +236,21 @@
 #define __PTK_PERF_UTILS_KEY3		193
 #define __PTK_PERF_UTILS_KEY4		194
 
+#ifdef DARLING
+/* Keys 200 - 209 are for Darling */
+/* These keys seem to be entirely unused by Apple, so they should be safe to use in Darling. */
+#define __PTK_DARLING_KEY0 200
+#define __PTK_DARLING_KEY1 201
+#define __PTK_DARLING_KEY2 202
+#define __PTK_DARLING_KEY3 203
+#define __PTK_DARLING_KEY4 204
+#define __PTK_DARLING_KEY5 205
+#define __PTK_DARLING_KEY6 206
+#define __PTK_DARLING_KEY7 207
+#define __PTK_DARLING_KEY8 208
+#define __PTK_DARLING_KEY9 209
+#endif
+
 /* Keys 210 - 229 are for libSystem usage within the iOS Simulator */
 /* They are offset from their corresponding libSystem keys by 200 */
 #define __PTK_LIBC_SIM_LOCALE_KEY	210
