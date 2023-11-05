@@ -56,7 +56,7 @@ add_circular(system_pthread FAT
 	SOURCES
 		${pthread_sources}
 	SIBLINGS
-		platform system_kernel system_dyld system_c
+		platform system_kernel system_dyld system_c macho
 )
 #target_link_libraries(system_pthread system_kernel platform)
 #make_fat(system_pthread)
