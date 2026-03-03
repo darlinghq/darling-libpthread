@@ -106,7 +106,7 @@ struct _pthread_registration_data {
 #define VARIANT_DYLD 0
 #endif // !defined(VARIANT_DYLD)
 
-#if TARGET_OS_OSX && TARGET_CPU_ARM64 && !VARIANT_DYLD
+#if TARGET_OS_OSX && TARGET_CPU_ARM64 && !VARIANT_DYLD && !defined(DARLING)
 #define _PTHREAD_CONFIG_JIT_WRITE_PROTECT 1
 #else
 #define _PTHREAD_CONFIG_JIT_WRITE_PROTECT 0
