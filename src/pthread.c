@@ -2127,6 +2127,12 @@ sched_yield(void)
 	return 0;
 }
 
+void
+pthread_yield_np(void)
+{
+	(void)sched_yield();
+}
+
 // Libsystem knows about this symbol and exports it to libsyscall
 int
 pthread_current_stack_contains_np(const void *addr, size_t length)
