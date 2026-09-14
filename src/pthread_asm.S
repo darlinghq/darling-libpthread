@@ -282,6 +282,14 @@ _thread_chkstk_darwin:
 ____chkstk_darwin: // %w9/x9 == alloca size
 	stp     x10, x11, [sp, #-16]
 
+#if defined(DARLING)
+	// DARLING: Linux keeps TPIDRRO_EL0 at zero for user space, so pthread_self() (and its stack bounds)
+	// can't be found this way; the Darwin TSD base lives in a table reached through
+	// sys_thread_get_tsd_base() instead. Probe the requested stack page by page, which is what this
+	// routine already does for stacks it doesn't recognize (e.g. an alternate signal stack).
+	b       Lprobe
+#endif
+
 	// validate that the frame pointer is on our stack (no alt stack)
 	mrs     x10, TPIDRRO_EL0
 	and     x10, x10, #0xfffffffffffffff8
