@@ -280,6 +280,30 @@ _thread_start:
 _thread_chkstk_darwin:
 	.globl ____chkstk_darwin
 ____chkstk_darwin: // %w9/x9 == alloca size
+#if defined(DARLING)
+	// DARLING: Linux keeps TPIDRRO_EL0 at zero for user space, so pthread_self() (and its stack bounds)
+	// can't be found this way; the Darwin TSD base lives in a table reached through
+	// sys_thread_get_tsd_base() instead. Probe the requested stack page by page, which is what this
+	// routine already does below (Lprobe) for stacks it doesn't recognize (e.g. an alternate signal stack).
+	// x10/x11 are saved by moving sp rather than below it: Linux doesn't keep a red zone when it
+	// delivers a signal, so anything stored under sp can be overwritten by the signal frame.
+	stp     x10, x11, [sp, #-16]!
+	add     x10, sp, #16
+	cmp     x9, #0x1000
+	b.lo    Ldarling_end
+Ldarling_loop:
+	sub     x10, x10, #0x1000
+	ldr     x11, [x10]
+	sub     x9, x9, #0x1000
+	cmp     x9, #0x1000
+	b.hi    Ldarling_loop
+Ldarling_end:
+	sub     x10, x10, x9
+	ldr     x11, [x10]
+	ldp     x10, x11, [sp], #16
+	ret
+#endif
+
 	stp     x10, x11, [sp, #-16]
 
 	// validate that the frame pointer is on our stack (no alt stack)
