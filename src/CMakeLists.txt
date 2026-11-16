@@ -52,7 +52,18 @@ SET_SOURCE_FILES_PROPERTIES(pthread_rwlock.c PROPERTIES COMPILE_FLAGS "${CMAKE_C
 
 
 set(DYLIB_INSTALL_NAME "/usr/lib/system/libsystem_pthread.dylib")
+
+# 32-bit macOS code was linked against the pre-UNIX2003 names (_pthread_join,
+# _pthread_cond_wait, ...). Export them as aliases of the $UNIX2003 variants.
+# The alias list is only meaningful for the i386 slice; ld64 ignores aliases
+# whose base symbol is absent in a slice (it warns once per alias there).
+set(pthread_link_flags "")
+if (BUILD_TARGET_32BIT)
+	set(pthread_link_flags "-Wl,-alias_list,${CMAKE_CURRENT_SOURCE_DIR}/../xcodescripts/pthread-i386.aliases")
+endif (BUILD_TARGET_32BIT)
+
 add_circular(system_pthread FAT
+	LINK_FLAGS "${pthread_link_flags}"
 	SOURCES
 		${pthread_sources}
 	SIBLINGS
